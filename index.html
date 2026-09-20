@@ -109,6 +109,47 @@
 .page5{background:radial-gradient(circle at 50% 20%,#fff8ea 0,#f3e7d1 52%,#e7d4b4 100%)}
 .final-word{font-family:'Great Vibes',cursive;color:var(--gold);font-size:clamp(42px,9vw,92px);margin-bottom:0} .closing{font-family:'Cormorant Garamond',serif;color:var(--burg);font-size:clamp(36px,6vw,68px);line-height:1;margin:0} .closing-small{max-width:550px;margin:28px auto 0;color:#6c564e;font-family:'Cormorant Garamond',serif;font-size:19px;line-height:1.65}
 .nav{position:fixed;right:18px;top:50%;transform:translateY(-50%);z-index:50;display:flex;flex-direction:column;gap:10px} .nav a{width:8px;height:8px;border-radius:50%;border:1px solid rgba(255,244,224,.65);display:block;background:transparent;transition:.3s} .nav a.active{background:var(--gold2);box-shadow:0 0 0 5px rgba(217,183,119,.12)}
+
+/* Background music control */
+.music-toggle{
+  position:fixed;
+  right:18px;
+  bottom:18px;
+  z-index:60;
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  border:1px solid rgba(217,183,119,.58);
+  background:rgba(62,7,16,.72);
+  color:#f5ead6;
+  display:grid;
+  place-items:center;
+  font-size:15px;
+  line-height:1;
+  cursor:pointer;
+  backdrop-filter:blur(10px);
+  box-shadow:0 8px 24px rgba(0,0,0,.18);
+  transition:.3s
+}
+
+.music-toggle:hover{
+  transform:translateY(-2px);
+  background:rgba(62,7,16,.88)
+}
+
+.music-toggle.muted{
+  opacity:.72
+}
+
+@media(max-width:700px){
+  .music-toggle{
+    right:14px;
+    bottom:14px;
+    width:40px;
+    height:40px
+  }
+}
+
 .reveal{opacity:0;transform:translateY(30px);transition:opacity .9s ease,transform 1s cubic-bezier(.2,.8,.2,1)} .visible .reveal{opacity:1;transform:none} .delay1{transition-delay:.12s} .delay2{transition-delay:.24s} .delay3{transition-delay:.36s}
 @keyframes rise{from{opacity:0;transform:translateY(40px) scale(.96)}to{opacity:1;transform:none}} @keyframes float{0%,100%{transform:translateY(-8px)}50%{transform:translateY(8px)}} @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(217,183,119,.55)}70%{box-shadow:0 0 0 12px rgba(217,183,119,0)}100%{box-shadow:0 0 0 0 rgba(217,183,119,0)}}
 @media(max-width:700px){.page2 .wreath{width:82vw;height:70vh}.page2 .wreath2{width:76vw;height:65vh}.frame{inset:12px} .corner{width:88px;height:88px} .orn-top,.orn-bottom{width:300px;height:135px} .orn-side{width:110px;height:260px} .page2 .content,.page5 .content{padding:100px 10vw} .timeline-head{display:block} .timeline-head p{margin-top:12px} .detail-grid{grid-template-columns:1fr} .timer{gap:7px} .time{padding:15px 5px} .time strong{font-size:42px} .event{padding-left:60px} .timeline::before{left:19px} .node{left:2px} .event-name{font-size:29px} .story{font-size:18px} .nav{right:10px}}
@@ -118,6 +159,17 @@
 </style>
 </head>
 <body>
+
+<audio id="backgroundMusic" loop preload="auto" aria-hidden="true">
+  <source src="wedding-music.mp3" type="audio/mpeg">
+</audio>
+
+<button id="musicToggle"
+        class="music-toggle"
+        type="button"
+        aria-label="Mute background music"
+        title="Mute background music">♪</button>
+
 <div class="invite">
   <nav class="nav" aria-label="Sections">
     <a href="#cover" class="active"></a><a href="#intro"></a><a href="#events"></a><a href="#countdown"></a><a href="#outro"></a>
@@ -330,7 +382,75 @@ document.querySelectorAll('.copy-btn').forEach(btn=>btn.addEventListener('click'
   const fallback=()=>{const ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.focus();ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();return ok};
   let ok=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);ok=true}}catch(_){}if(!ok)ok=fallback();const original='Copy details';btn.textContent=ok?'Copied':'Copy unavailable';setTimeout(()=>{btn.textContent=original},1500)}));
 
+// Background music
+const MUSIC_VOLUME=0.22;
+const music=document.getElementById('backgroundMusic');
+const musicToggle=document.getElementById('musicToggle');
+let musicStarted=false;
+let musicFallbackActive=true;
 
+music.volume=MUSIC_VOLUME;
+
+function updateMusicButton(){
+  const muted=music.muted;
+  musicToggle.textContent=muted?'♪':'♫';
+  musicToggle.setAttribute(
+    'aria-label',
+    muted?'Unmute background music':'Mute background music'
+  );
+  musicToggle.setAttribute(
+    'title',
+    muted?'Unmute background music':'Mute background music'
+  );
+  musicToggle.classList.toggle('muted',muted);
+}
+
+function removeMusicFallbacks(){
+  if(!musicFallbackActive)return;
+
+  musicFallbackActive=false;
+
+  ['pointerdown','touchstart','wheel','scroll','keydown'].forEach(type=>{
+    window.removeEventListener(type,startMusic,{passive:true});
+  });
+}
+
+function startMusic(){
+  if(musicStarted)return;
+
+  const playPromise=music.play();
+
+  if(playPromise!==undefined){
+    playPromise.then(()=>{
+      musicStarted=true;
+      removeMusicFallbacks();
+      updateMusicButton();
+    }).catch(()=>{});
+  }else{
+    musicStarted=true;
+    removeMusicFallbacks();
+  }
+}
+
+// Try immediately when the page loads.
+// If the browser blocks autoplay, the fallback listeners below will try again.
+startMusic();
+
+['pointerdown','touchstart','wheel','scroll','keydown'].forEach(type=>{
+  window.addEventListener(type,startMusic,{passive:true});
+});
+
+musicToggle.addEventListener('click',()=>{
+  if(!musicStarted){
+    startMusic();
+    return;
+  }
+
+  music.muted=!music.muted;
+  updateMusicButton();
+});
+
+updateMusicButton();
 
 const target=new Date(firstStart || '2026-12-29T19:00:00+04:00').getTime();
 function tick(){const diff=Math.max(0,target-Date.now()); const s=Math.floor(diff/1000); const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60; document.getElementById('days').textContent=String(d).padStart(3,'0');document.getElementById('hours').textContent=String(h).padStart(2,'0');document.getElementById('minutes').textContent=String(m).padStart(2,'0');document.getElementById('seconds').textContent=String(sec).padStart(2,'0')}tick();setInterval(tick,1000);
